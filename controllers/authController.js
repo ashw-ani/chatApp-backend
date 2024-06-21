@@ -1,10 +1,19 @@
 const User = require("../models/User");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { validationResult } = require("express-validator");
 
 dotenv.config();
 
 exports.signup = async (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: "validation failed", errors: errors.array() });
+  }
   const { username, password } = req.body;
 
   try {
@@ -19,5 +28,29 @@ exports.signup = async (req, res, next) => {
     res.status(201).json({ message: "user created successully" });
   } catch {
     res.status(500).json({ message: "failed to create user" });
+  }
+};
+
+exports.login = async (req, res, next) => {
+  const { username, password } = req.body;
+  try {
+    const user = await User.findOne({ username: username });
+    if (!user) {
+      return res.status(401).json({
+        message: "user not found",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "incorrect password" });
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "2h",
+    });
+    res.status(200).json({ message: "login successful", token });
+  } catch (error) {
+    res.status(500).json({ message: "login failed" });
   }
 };
